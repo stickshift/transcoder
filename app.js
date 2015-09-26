@@ -15,13 +15,19 @@ var app = express();
  */
 app.post('/transcode', function (req, res) {
 
-    // Create temp folder to hold HLS segments
     var streamId = uuid.v1();
     var streamFolder = streamId.substring(0, 2) + '/' + streamId.substring(2, 4);
+    var streamPlaylist = streamFolder + '/' + streamId + '.m3u8'; 
+
+    // Create temp folder to hold HLS segments
     mkdirp.sync(streamFolder);
 
+    // Watch streamFolder for changes
+    fs.watch(streamFolder, function (event, filename) {
+        console.log('%s - HLS updated %s/%s', config.name, streamFolder, filename);
+    });
+
     // Transcode to HLS using ffmpeg
-    var streamPlaylist = streamFolder + '/' + streamId + '.m3u8'; 
     ffmpeg().input(req)
             .output(streamPlaylist)
             .on('error', function (err) {
@@ -32,12 +38,14 @@ app.post('/transcode', function (req, res) {
             .on('end', function () {
                 res.writeHead(200);
                 res.end();
+                console.log('%s - Transcoding complete', config.name);
             })
             .run();
 
     console.log('%s - Transcoding stream to %s', config.name, streamPlaylist);
 });
 
-var server = app.listen(config.listen_port, function () {
+// Kick off server
+app.listen(config.listen_port, function () {
     console.log('%s - Listening on port %d', config.name, config.listen_port);
 });
